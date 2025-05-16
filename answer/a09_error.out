@@ -8,6 +8,7 @@ FLOAT_LIT 1.000000
 > Insert `z` (addr: 1) to scope level 1
 INT_LIT 3
 ASSIGN
+error:5: cannot borrow immutable borrowed content `x` as mutable
 INT_LIT 8
 error:6: undefined: y
 IDENT (name=x, address=0)

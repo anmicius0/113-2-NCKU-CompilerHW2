@@ -85,19 +85,9 @@ GlobalStatement
 ;
 
 FunctionDeclStmt
-    : FUNC { printf("FUNC\n"); } IDENT { printf("IDENT\n"); } '(' ')'
-;
-
-Type
-    : INT { $$ = "i32"; }
-    | FLOAT { $$ = "f32"; }
-    | BOOL { $$ = "bool"; }
-    | STR { $$ = "str"; }
-;
+    :
 
 %%
-
-v[v.size()-1].first
 
 /* C code section */
 int main(int argc, char *argv[])

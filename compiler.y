@@ -260,6 +260,18 @@ Stmt
         sym_count++;
         next_addr++;
     }
+    | LET MUT IDENT '=' Expr ';' { // New rule for type-inferred mutable declaration
+        insert_sym_entry($3, next_addr, current_scope_level, yylineno);
+        sym_names[sym_count] = strdup($3);
+        sym_addrs[sym_count] = next_addr;
+        sym_scopes[sym_count] = current_scope_level;
+        sym_linenos[sym_count] = yylineno;
+        sym_types[sym_count] = strdup($5); // Corrected from $4 to $5, type inferred from Expr
+        sym_mut[sym_count] = 1;     // Set mutability to 1
+        sym_funcsig[sym_count] = "-";
+        sym_count++;
+        next_addr++;
+    }
     | LET MUT IDENT ':' INT ';' {
         insert_sym_entry($3, next_addr, current_scope_level, yylineno);
         sym_names[sym_count] = strdup($3);
@@ -284,6 +296,20 @@ Stmt
         sym_count++;
         next_addr++;
     }
+    | LET IDENT ':' '[' INT ';' INT_LIT { printf("INT_LIT %d\n", $7); } ']' '=' '[' ExprList ']' ';' { // Array declaration
+        // Size already printed by mid-rule action.
+        // ExprList elements are handled by their own Expr rules, which should print them.
+        insert_sym_entry($2, next_addr, current_scope_level, yylineno);
+        sym_names[sym_count] = strdup($2);
+        sym_addrs[sym_count] = next_addr;
+        sym_scopes[sym_count] = current_scope_level;
+        sym_linenos[sym_count] = yylineno;
+        sym_types[sym_count] = "array"; // Type is "array"
+        sym_mut[sym_count] = 0;     // Mutability (0 for let)
+        sym_funcsig[sym_count] = "-"; // Placeholder for detailed array type sig
+        sym_count++;
+        next_addr++; // Simplified address management
+    }
     | IDENT '=' Expr ';' { printf("ASSIGN\n"); }
     | IDENT ADD_ASSIGN Expr ';' { printf("ADD_ASSIGN\n"); }
     | IDENT SUB_ASSIGN Expr ';' { printf("SUB_ASSIGN\n"); }
@@ -296,6 +322,7 @@ Stmt
     | PRINT '(' Expr ')' ';' { printf("PRINT %s\n", $3); }
     | PrintStmt
     | IfStmt
+    | WhileStmt
     | ScopedBlock
     | NEWLINE
 ;
@@ -317,6 +344,7 @@ Expr
     | Expr '+' Expr { printf("ADD\n"); $$ = $1; }
     | Expr '-' Expr { printf("SUB\n"); $$ = $1; }
     | Expr '>' Expr { printf("GTR\n"); $$ = "bool"; }
+    | Expr '<' Expr { printf("LSS\n"); $$ = "bool"; }
     | Expr EQL Expr { printf("EQL\n"); $$ = "bool"; }
     | Expr LAND Expr { printf("LAND\n"); $$ = "bool"; }
     | Expr LOR Expr { printf("LOR\n"); $$ = "bool"; }
@@ -328,6 +356,14 @@ Expr
         if (strcmp($1, "i32") == 0) printf("i2f\n"); 
         $$ = "f32"; 
     }
+    | IDENT { printf("IDENT (name=%s, address=%d)\n", $1, lookup_addr($1)); } 
+      '[' Expr ']' 
+      { $$ = lookup_type($1); } /* Array element access */
+;
+
+ExprList
+    : Expr
+    | ExprList ',' Expr
 ;
 
 PrintStmt
@@ -349,6 +385,10 @@ IfStmt
     : IF Expr ScopedBlock
     | IF Expr ScopedBlock ELSE ScopedBlock
     | IF Expr ScopedBlock ELSE IfStmt
+;
+
+WhileStmt
+    : WHILE Expr ScopedBlock
 ;
 
 %%

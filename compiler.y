@@ -161,6 +161,44 @@ Stmt
         sym_count++;
         next_addr++;
     }
+    | LET IDENT ':' BOOL '=' Expr ';' {
+        insert_sym_entry($2, next_addr, current_scope_level, yylineno);
+        sym_names[sym_count] = strdup($2);
+        sym_addrs[sym_count] = next_addr;
+        sym_scopes[sym_count] = current_scope_level;
+        sym_linenos[sym_count] = yylineno;
+        sym_types[sym_count] = "bool";
+        sym_funcsig[sym_count] = "-";
+        sym_count++;
+        next_addr++;
+    }
+    | LET IDENT ':' STR '=' Expr ';' {
+        insert_sym_entry($2, next_addr, current_scope_level, yylineno);
+        sym_names[sym_count] = strdup($2);
+        sym_addrs[sym_count] = next_addr;
+        sym_scopes[sym_count] = current_scope_level;
+        sym_linenos[sym_count] = yylineno;
+        sym_types[sym_count] = "str";
+        sym_funcsig[sym_count] = "-";
+        sym_count++;
+        next_addr++;
+    }
+    | LET IDENT ':' '&' STR '=' Expr ';' {
+        insert_sym_entry($2, next_addr, current_scope_level, yylineno);
+        sym_names[sym_count] = strdup($2);
+        sym_addrs[sym_count] = next_addr;
+        sym_scopes[sym_count] = current_scope_level;
+        sym_linenos[sym_count] = yylineno;
+        sym_types[sym_count] = "str";
+        sym_funcsig[sym_count] = "-";
+        sym_count++;
+        next_addr++;
+    }
+    | '{' { current_scope_level++; create_sym_table(); } StmtList '}' {
+        dump_sym_table(current_scope_level);
+        while (sym_count > 0 && sym_scopes[sym_count-1] == current_scope_level) sym_count--;
+        current_scope_level--;
+    }
     | PRINTLN '(' Expr ')' ';' {
         printf("PRINTLN %s\n", $3);
     }
@@ -172,6 +210,8 @@ Stmt
 Expr
     : INT_LIT { printf("INT_LIT %d\n", $1); $$ = "i32"; }
     | FLOAT_LIT { printf("FLOAT_LIT %f\n", $1); $$ = "f32"; }
+    | '"' STRING_LIT '"' { printf("STRING_LIT \"%s\"\n", $2); $$ = "str"; }
+    | STRING_LIT { printf("STRING_LIT \"%s\"\n", $1); $$ = "str"; }
     | IDENT { printf("IDENT (name=%s, address=%d)\n", $1, lookup_addr($1)); $$ = lookup_type($1); }
     | TRUE { printf("bool TRUE\n"); $$ = "bool"; }
     | FALSE { printf("bool FALSE\n"); $$ = "bool"; }
@@ -189,8 +229,8 @@ Expr
 ;
 
 PrintStmt
-    : PRINTLN '(' '"' STRING_LIT '"' ')' ';' { 
-        printf("STRING_LIT \"%s\"\n", $4); 
+    : PRINTLN '(' STRING_LIT ')' ';' { 
+        printf("STRING_LIT \"%s\"\n", $3);
         printf("PRINTLN str\n");
     }
 ;
@@ -246,14 +286,14 @@ static void dump_sym_table(int scope_level) {
 }
 
 int lookup_addr(const char *name) {
-    for (int i = 0; i < sym_count; i++) {
+    for (int i = sym_count - 1; i >= 0; i--) {
         if (strcmp(sym_names[i], name) == 0) return sym_addrs[i];
     }
     return -1;
 }
 
 char *lookup_type(const char *name) {
-    for (int i = 0; i < sym_count; i++) {
+    for (int i = sym_count - 1; i >= 0; i--) {
         if (strcmp(sym_names[i], name) == 0) return sym_types[i];
     }
     return "";

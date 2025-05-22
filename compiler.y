@@ -40,6 +40,7 @@
     static int sym_addrs[MAX_SYM];
     static int sym_scopes[MAX_SYM];
     static int sym_linenos[MAX_SYM];
+    static int sym_mut[MAX_SYM]; // Added for mutability
     static int sym_count = 0;
 %}
 
@@ -145,7 +146,8 @@ Stmt
         sym_addrs[sym_count] = next_addr;
         sym_scopes[sym_count] = current_scope_level;
         sym_linenos[sym_count] = yylineno;
-        sym_types[sym_count] = $6;
+        sym_types[sym_count] = "i32"; // Corrected type
+        sym_mut[sym_count] = 0;     // Set mutability
         sym_funcsig[sym_count] = "-";
         sym_count++;
         next_addr++;
@@ -156,7 +158,8 @@ Stmt
         sym_addrs[sym_count] = next_addr;
         sym_scopes[sym_count] = current_scope_level;
         sym_linenos[sym_count] = yylineno;
-        sym_types[sym_count] = $6;
+        sym_types[sym_count] = "f32"; // Corrected type
+        sym_mut[sym_count] = 0;     // Set mutability
         sym_funcsig[sym_count] = "-";
         sym_count++;
         next_addr++;
@@ -168,6 +171,7 @@ Stmt
         sym_scopes[sym_count] = current_scope_level;
         sym_linenos[sym_count] = yylineno;
         sym_types[sym_count] = "bool";
+        sym_mut[sym_count] = 0;     // Set mutability
         sym_funcsig[sym_count] = "-";
         sym_count++;
         next_addr++;
@@ -179,6 +183,7 @@ Stmt
         sym_scopes[sym_count] = current_scope_level;
         sym_linenos[sym_count] = yylineno;
         sym_types[sym_count] = "str";
+        sym_mut[sym_count] = 0;     // Set mutability
         sym_funcsig[sym_count] = "-";
         sym_count++;
         next_addr++;
@@ -190,10 +195,77 @@ Stmt
         sym_scopes[sym_count] = current_scope_level;
         sym_linenos[sym_count] = yylineno;
         sym_types[sym_count] = "str";
+        sym_mut[sym_count] = 0;     // Set mutability
         sym_funcsig[sym_count] = "-";
         sym_count++;
         next_addr++;
     }
+    | LET MUT IDENT ':' INT '=' Expr ';' {
+        insert_sym_entry($3, next_addr, current_scope_level, yylineno);
+        sym_names[sym_count] = strdup($3);
+        sym_addrs[sym_count] = next_addr;
+        sym_scopes[sym_count] = current_scope_level;
+        sym_linenos[sym_count] = yylineno;
+        sym_types[sym_count] = "i32"; // Corrected type
+        sym_mut[sym_count] = 1;     // Set mutability
+        sym_funcsig[sym_count] = "-";
+        sym_count++;
+        next_addr++;
+    }
+    | LET MUT IDENT ':' FLOAT '=' Expr ';' {
+        insert_sym_entry($3, next_addr, current_scope_level, yylineno);
+        sym_names[sym_count] = strdup($3);
+        sym_addrs[sym_count] = next_addr;
+        sym_scopes[sym_count] = current_scope_level;
+        sym_linenos[sym_count] = yylineno;
+        sym_types[sym_count] = "f32"; // Corrected type
+        sym_mut[sym_count] = 1;     // Set mutability
+        sym_funcsig[sym_count] = "-";
+        sym_count++;
+        next_addr++;
+    }
+    | LET MUT IDENT ':' BOOL '=' Expr ';' {
+        insert_sym_entry($3, next_addr, current_scope_level, yylineno);
+        sym_names[sym_count] = strdup($3);
+        sym_addrs[sym_count] = next_addr;
+        sym_scopes[sym_count] = current_scope_level;
+        sym_linenos[sym_count] = yylineno;
+        sym_types[sym_count] = "bool";
+        sym_mut[sym_count] = 1;     // Set mutability
+        sym_funcsig[sym_count] = "-";
+        sym_count++;
+        next_addr++;
+    }
+    | LET MUT IDENT ':' STR '=' Expr ';' {
+        insert_sym_entry($3, next_addr, current_scope_level, yylineno);
+        sym_names[sym_count] = strdup($3);
+        sym_addrs[sym_count] = next_addr;
+        sym_scopes[sym_count] = current_scope_level;
+        sym_linenos[sym_count] = yylineno;
+        sym_types[sym_count] = "str";
+        sym_mut[sym_count] = 1;     // Set mutability
+        sym_funcsig[sym_count] = "-";
+        sym_count++;
+        next_addr++;
+    }
+    | LET MUT IDENT ':' '&' STR '=' Expr ';' {
+        insert_sym_entry($3, next_addr, current_scope_level, yylineno);
+        sym_names[sym_count] = strdup($3);
+        sym_addrs[sym_count] = next_addr;
+        sym_scopes[sym_count] = current_scope_level;
+        sym_linenos[sym_count] = yylineno;
+        sym_types[sym_count] = "str";
+        sym_mut[sym_count] = 1;     // Set mutability
+        sym_funcsig[sym_count] = "-";
+        sym_count++;
+        next_addr++;
+    }
+    | IDENT '=' Expr ';' { printf("ASSIGN\n"); }
+    | IDENT ADD_ASSIGN Expr ';' { printf("ADD_ASSIGN\n"); }
+    | IDENT SUB_ASSIGN Expr ';' { printf("SUB_ASSIGN\n"); }
+    | IDENT MUL_ASSIGN Expr ';' { printf("MUL_ASSIGN\n"); }
+    | IDENT DIV_ASSIGN Expr ';' { printf("DIV_ASSIGN\n"); }
+    | IDENT REM_ASSIGN Expr ';' { printf("REM_ASSIGN\n"); }
     | '{' { current_scope_level++; create_sym_table(); } StmtList '}' {
         dump_sym_table(current_scope_level);
         while (sym_count > 0 && sym_scopes[sym_count-1] == current_scope_level) sym_count--;
@@ -210,8 +282,8 @@ Stmt
 Expr
     : INT_LIT { printf("INT_LIT %d\n", $1); $$ = "i32"; }
     | FLOAT_LIT { printf("FLOAT_LIT %f\n", $1); $$ = "f32"; }
+    | '"' '"' { printf("STRING_LIT \"\"\n"); $$ = "str"; }
     | '"' STRING_LIT '"' { printf("STRING_LIT \"%s\"\n", $2); $$ = "str"; }
-    | STRING_LIT { printf("STRING_LIT \"%s\"\n", $1); $$ = "str"; }
     | IDENT { printf("IDENT (name=%s, address=%d)\n", $1, lookup_addr($1)); $$ = lookup_type($1); }
     | TRUE { printf("bool TRUE\n"); $$ = "bool"; }
     | FALSE { printf("bool FALSE\n"); $$ = "bool"; }
@@ -277,7 +349,12 @@ static void dump_sym_table(int scope_level) {
     int local_idx = 0;
     for (int i = 0; i < sym_count; i++) {
         if (sym_scopes[i] == scope_level) {
-            int mut_flag = (strcmp(sym_types[i], "func") == 0 ? -1 : 0);
+            int mut_flag;
+            if (strcmp(sym_types[i], "func") == 0) {
+                mut_flag = -1;
+            } else {
+                mut_flag = sym_mut[i]; // Use stored mutability
+            }
             printf("%-10d%-10s%-10d%-10s%-10d%-10d%-10s\n",
                 local_idx, sym_names[i], mut_flag, sym_types[i], sym_addrs[i], sym_linenos[i], sym_funcsig[i]);
             local_idx++;

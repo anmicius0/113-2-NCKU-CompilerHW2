@@ -68,6 +68,13 @@
 %token FUNC RETURN BREAK
 %token ARROW AS IN DOTDOT RSHIFT LSHIFT
 
+%left LOR
+%left LAND
+%left '>' '<' GEQ LEQ EQL NEQ
+%left '+' '-'
+%left '*' '/' '%'
+%right '!' UMINUS
+
 /* Token with return, which need to sepcify type */
 %token <i_val> INT_LIT
 %token <f_val> FLOAT_LIT
@@ -157,6 +164,7 @@ Stmt
     | PRINTLN '(' Expr ')' ';' {
         printf("PRINTLN %s\n", $3);
     }
+    | PRINT '(' Expr ')' ';' { printf("PRINT %s\n", $3); }
     | PrintStmt
     | NEWLINE
 ;
@@ -165,11 +173,19 @@ Expr
     : INT_LIT { printf("INT_LIT %d\n", $1); $$ = "i32"; }
     | FLOAT_LIT { printf("FLOAT_LIT %f\n", $1); $$ = "f32"; }
     | IDENT { printf("IDENT (name=%s, address=%d)\n", $1, lookup_addr($1)); $$ = lookup_type($1); }
-    | Expr '+' Expr { printf("ADD\n"); $$ = $1; }
-    | Expr '-' Expr { printf("SUB\n"); $$ = $1; }
+    | TRUE { printf("bool TRUE\n"); $$ = "bool"; }
+    | FALSE { printf("bool FALSE\n"); $$ = "bool"; }
+    | '-' Expr %prec UMINUS { printf("NEG\n"); $$ = $2; }
+    | '!' Expr { printf("NOT\n"); $$ = $2; }
+    | '(' Expr ')' { $$ = $2; }
     | Expr '*' Expr { printf("MUL\n"); $$ = $1; }
     | Expr '/' Expr { printf("DIV\n"); $$ = $1; }
     | Expr '%' Expr { printf("REM\n"); $$ = $1; }
+    | Expr '+' Expr { printf("ADD\n"); $$ = $1; }
+    | Expr '-' Expr { printf("SUB\n"); $$ = $1; }
+    | Expr '>' Expr { printf("GTR\n"); $$ = "bool"; }
+    | Expr LAND Expr { printf("LAND\n"); $$ = "bool"; }
+    | Expr LOR Expr { printf("LOR\n"); $$ = "bool"; }
 ;
 
 PrintStmt

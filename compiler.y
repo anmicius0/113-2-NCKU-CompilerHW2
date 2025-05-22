@@ -25,9 +25,22 @@
     static void create_sym_table();
     static void insert_sym_entry(const char* name, int addr, int scope_level, int lineno);
     static void dump_sym_table(int scope_level);
+    extern int lookup_addr(const char *name);
+    extern char *lookup_type(const char *name);
 
     /* Global variables */
     bool HAS_ERROR = false;
+    static int next_addr = 0;
+
+    /* Symbol table storage */
+    #define MAX_SYM 100
+    static char* sym_names[MAX_SYM];
+    static char* sym_types[MAX_SYM];
+    static char* sym_funcsig[MAX_SYM];
+    static int sym_addrs[MAX_SYM];
+    static int sym_scopes[MAX_SYM];
+    static int sym_linenos[MAX_SYM];
+    static int sym_count = 0;
 %}
 
 %error-verbose
@@ -42,6 +55,7 @@
     char *s_val;
     /* ... */
 }
+%type <s_val> Expr
 
 /* Token without return */
 %token LET MUT NEWLINE
@@ -87,14 +101,20 @@ GlobalStatement
 
 FunctionDeclStmt
     : FUNC IDENT '(' ')' { 
-        printf("func: %s\n", $2); 
+        printf("func: %s\n", $2);
         if (strcmp($2, "main") == 0) {
-            // yylineno here correctly refers to the line number of the ID token
-            main_func_lineno = yylineno; 
+            main_func_lineno = yylineno;
         }
-        insert_sym_entry($2, -1, 0, yylineno); // Use current yylineno for the function definition
-        
+        insert_sym_entry($2, -1, 0, yylineno);
+        sym_names[sym_count] = strdup($2);
+        sym_addrs[sym_count] = -1;
+        sym_scopes[sym_count] = 0;
+        sym_linenos[sym_count] = yylineno;
+        sym_types[sym_count] = "func";
+        sym_funcsig[sym_count] = "(V)V";
+        sym_count++;
         current_scope_level++;   
+        next_addr = 0;          
         create_sym_table();      
     } Block {
         dump_sym_table(current_scope_level); 
@@ -112,8 +132,44 @@ StmtList
 ;
 
 Stmt
-    : PrintStmt
+    : LET IDENT ':' INT '=' Expr ';' {
+        insert_sym_entry($2, next_addr, current_scope_level, yylineno);
+        sym_names[sym_count] = strdup($2);
+        sym_addrs[sym_count] = next_addr;
+        sym_scopes[sym_count] = current_scope_level;
+        sym_linenos[sym_count] = yylineno;
+        sym_types[sym_count] = $6;
+        sym_funcsig[sym_count] = "-";
+        sym_count++;
+        next_addr++;
+    }
+    | LET IDENT ':' FLOAT '=' Expr ';' {
+        insert_sym_entry($2, next_addr, current_scope_level, yylineno);
+        sym_names[sym_count] = strdup($2);
+        sym_addrs[sym_count] = next_addr;
+        sym_scopes[sym_count] = current_scope_level;
+        sym_linenos[sym_count] = yylineno;
+        sym_types[sym_count] = $6;
+        sym_funcsig[sym_count] = "-";
+        sym_count++;
+        next_addr++;
+    }
+    | PRINTLN '(' Expr ')' ';' {
+        printf("PRINTLN %s\n", $3);
+    }
+    | PrintStmt
     | NEWLINE
+;
+
+Expr
+    : INT_LIT { printf("INT_LIT %d\n", $1); $$ = "i32"; }
+    | FLOAT_LIT { printf("FLOAT_LIT %f\n", $1); $$ = "f32"; }
+    | IDENT { printf("IDENT (name=%s, address=%d)\n", $1, lookup_addr($1)); $$ = lookup_type($1); }
+    | Expr '+' Expr { printf("ADD\n"); $$ = $1; }
+    | Expr '-' Expr { printf("SUB\n"); $$ = $1; }
+    | Expr '*' Expr { printf("MUL\n"); $$ = $1; }
+    | Expr '/' Expr { printf("DIV\n"); $$ = $1; }
+    | Expr '%' Expr { printf("REM\n"); $$ = $1; }
 ;
 
 PrintStmt
@@ -140,15 +196,8 @@ int main(int argc, char *argv[])
     
     yyparse();
 
-    // If yylineno is 1 for an empty file (0 newlines processed),
-    // and N+1 for a file with N newlines (e.g. N lines, all newline-terminated),
-    // then yylineno - 1 should give the number of lines.
-    // This matches the desired output for the example.
     int total_lines_to_print = yylineno;
-    if (total_lines_to_print > 0) { // Basic guard, though yylineno starts at 1
-         // Based on the problem description (output 7, should be 6),
-         // it implies yylineno is one more than the "visual" line count.
-         // This typically happens if the last line of the file also ends with a newline.
+    if (total_lines_to_print > 0) { 
         total_lines_to_print--;
     }
 	printf("Total lines: %d\n", total_lines_to_print);
@@ -162,7 +211,6 @@ static void create_sym_table() {
 }
 
 static void insert_sym_entry(const char* name, int addr, int scope_level, int lineno) {
-    // lineno here is the actual line number from yylineno during parsing
     printf("> Insert `%s` (addr: %d) to scope level %d\n", name, addr, scope_level);
 }
 
@@ -170,10 +218,27 @@ static void dump_sym_table(int scope_level) {
     printf("\n> Dump symbol table (scope level: %d)\n", scope_level);
     printf("%-10s%-10s%-10s%-10s%-10s%-10s%-10s\n",
         "Index", "Name", "Mut","Type", "Addr", "Lineno", "Func_sig");
-    
-    if (scope_level == 0) {
-        // main_func_lineno was captured correctly during parsing
-        printf("%-10d%-10s%-10d%-10s%-10d%-10d%-10s\n",
-                0, "main", -1, "func", -1, main_func_lineno, "(V)V");
+    int local_idx = 0;
+    for (int i = 0; i < sym_count; i++) {
+        if (sym_scopes[i] == scope_level) {
+            int mut_flag = (strcmp(sym_types[i], "func") == 0 ? -1 : 0);
+            printf("%-10d%-10s%-10d%-10s%-10d%-10d%-10s\n",
+                local_idx, sym_names[i], mut_flag, sym_types[i], sym_addrs[i], sym_linenos[i], sym_funcsig[i]);
+            local_idx++;
+        }
     }
+}
+
+int lookup_addr(const char *name) {
+    for (int i = 0; i < sym_count; i++) {
+        if (strcmp(sym_names[i], name) == 0) return sym_addrs[i];
+    }
+    return -1;
+}
+
+char *lookup_type(const char *name) {
+    for (int i = 0; i < sym_count; i++) {
+        if (strcmp(sym_names[i], name) == 0) return sym_types[i];
+    }
+    return "";
 }

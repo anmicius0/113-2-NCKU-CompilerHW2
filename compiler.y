@@ -260,22 +260,43 @@ Stmt
         sym_count++;
         next_addr++;
     }
+    | LET MUT IDENT ':' INT ';' {
+        insert_sym_entry($3, next_addr, current_scope_level, yylineno);
+        sym_names[sym_count] = strdup($3);
+        sym_addrs[sym_count] = next_addr;
+        sym_scopes[sym_count] = current_scope_level;
+        sym_linenos[sym_count] = yylineno;
+        sym_types[sym_count] = "i32";
+        sym_mut[sym_count] = 1;
+        sym_funcsig[sym_count] = "-";
+        sym_count++;
+        next_addr++;
+    }
+    | LET MUT IDENT ':' FLOAT ';' {
+        insert_sym_entry($3, next_addr, current_scope_level, yylineno);
+        sym_names[sym_count] = strdup($3);
+        sym_addrs[sym_count] = next_addr;
+        sym_scopes[sym_count] = current_scope_level;
+        sym_linenos[sym_count] = yylineno;
+        sym_types[sym_count] = "f32";
+        sym_mut[sym_count] = 1;
+        sym_funcsig[sym_count] = "-";
+        sym_count++;
+        next_addr++;
+    }
     | IDENT '=' Expr ';' { printf("ASSIGN\n"); }
     | IDENT ADD_ASSIGN Expr ';' { printf("ADD_ASSIGN\n"); }
     | IDENT SUB_ASSIGN Expr ';' { printf("SUB_ASSIGN\n"); }
     | IDENT MUL_ASSIGN Expr ';' { printf("MUL_ASSIGN\n"); }
     | IDENT DIV_ASSIGN Expr ';' { printf("DIV_ASSIGN\n"); }
     | IDENT REM_ASSIGN Expr ';' { printf("REM_ASSIGN\n"); }
-    | '{' { current_scope_level++; create_sym_table(); } StmtList '}' {
-        dump_sym_table(current_scope_level);
-        while (sym_count > 0 && sym_scopes[sym_count-1] == current_scope_level) sym_count--;
-        current_scope_level--;
-    }
     | PRINTLN '(' Expr ')' ';' {
         printf("PRINTLN %s\n", $3);
     }
     | PRINT '(' Expr ')' ';' { printf("PRINT %s\n", $3); }
     | PrintStmt
+    | IfStmt
+    | ScopedBlock
     | NEWLINE
 ;
 
@@ -296,8 +317,17 @@ Expr
     | Expr '+' Expr { printf("ADD\n"); $$ = $1; }
     | Expr '-' Expr { printf("SUB\n"); $$ = $1; }
     | Expr '>' Expr { printf("GTR\n"); $$ = "bool"; }
+    | Expr EQL Expr { printf("EQL\n"); $$ = "bool"; }
     | Expr LAND Expr { printf("LAND\n"); $$ = "bool"; }
     | Expr LOR Expr { printf("LOR\n"); $$ = "bool"; }
+    | Expr AS INT { 
+        if (strcmp($1, "f32") == 0) printf("f2i\n"); 
+        $$ = "i32"; 
+    }
+    | Expr AS FLOAT { 
+        if (strcmp($1, "i32") == 0) printf("i2f\n"); 
+        $$ = "f32"; 
+    }
 ;
 
 PrintStmt
@@ -305,6 +335,20 @@ PrintStmt
         printf("STRING_LIT \"%s\"\n", $3);
         printf("PRINTLN str\n");
     }
+;
+
+ScopedBlock
+    : '{' { current_scope_level++; create_sym_table(); } StmtList '}' {
+        dump_sym_table(current_scope_level);
+        while (sym_count > 0 && sym_scopes[sym_count-1] == current_scope_level) sym_count--;
+        current_scope_level--;
+    }
+;
+
+IfStmt
+    : IF Expr ScopedBlock
+    | IF Expr ScopedBlock ELSE ScopedBlock
+    | IF Expr ScopedBlock ELSE IfStmt
 ;
 
 %%

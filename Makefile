@@ -23,4 +23,4 @@ clean:
 	rm -f ${COMPILER} y.tab.* y.output lex.* *.S
 
 judge: all
-	@judge -v ${VERBOSE}
+	@judge
